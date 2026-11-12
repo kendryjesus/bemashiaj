@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeMashiaj</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#030712'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Marked.js para renderizar Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        /* Ocultar barra de scroll globalmente */
+        body::-webkit-scrollbar,
+        div::-webkit-scrollbar,
+        textarea::-webkit-scrollbar {
+            display: none;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
+        /* Markdown Custom Styling */
+        .markdown-content h1 { font-size: 1.4rem; font-weight: 700; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+        .markdown-content h2 { font-size: 1.2rem; font-weight: 600; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+        .markdown-content h3 { font-size: 1.05rem; font-weight: 600; margin-top: 0.4rem; margin-bottom: 0.2rem; }
+        .markdown-content p { margin-bottom: 0.5rem; line-height: 1.6; }
+        .markdown-content ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+        .markdown-content ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+        .markdown-content blockquote { border-left: 3px solid #6b7280; padding-left: 0.75rem; font-style: italic; opacity: 0.85; margin: 0.5rem 0; }
+        .markdown-content code { background-color: rgba(110, 118, 129, 0.15); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.875em; font-family: monospace; }
+        .markdown-content pre { background-color: #1a1a1a; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.5rem 0; }
+        .markdown-content pre code { background: transparent; padding: 0; color: #e5e7eb; }
+        .markdown-content a { color: #3b82f6; text-decoration: underline; }
+        .markdown-content p:empty { min-height: 1rem; }
+
+        /* Truncado a máximo 5 líneas para el feed principal */
+        .line-clamp-5 {
+            display: -webkit-box;
+            -webkit-line-clamp: 5;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-black dark:text-gray-100 min-h-screen flex flex-col">
+
+    <!-- Header / Navbar -->
+    <header class="sticky top-0 z-40 backdrop-blur-md bg-white/80 dark:bg-black/80 border-b border-gray-200 dark:border-neutral-800 transition-colors">
+        <div class="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between">
+            <!-- Logo / Brand -->
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateToFeed()">
+                <div class="w-9 h-9 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-xl shadow-sm">
+                    @
+                </div>
+                <span class="font-bold text-lg tracking-tight">BeMashiaj</span>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex items-center space-x-3">
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300 transition" title="Cambiar tema">
+                    <i class="fa-solid fa-moon text-lg dark:hidden"></i>
+                    <i class="fa-solid fa-sun text-lg hidden dark:block"></i>
+                </button>
+
+                <!-- Indicador de Admin iniciado (visible solo para ti) -->
+                <div id="adminBadge" class="hidden items-center space-x-1.5 text-xs bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 px-3 py-1 rounded-full font-semibold">
+                    <i class="fa-solid fa-user-check"></i>
+                    <span>Admin</span>
+                    <button onclick="handleLogout()" class="ml-1.5 hover:text-red-400" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i></button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-2xl w-full mx-auto px-4 py-6 space-y-6">
+
+        <!-- Botón Volver (Visible sólo en vista detalle) -->
+        <div id="backToFeedBar" class="hidden items-center justify-between">
+            <button onclick="navigateToFeed()" class="flex items-center space-x-2 text-xs font-semibold text-gray-500 hover:text-black dark:hover:text-white transition">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span>Volver al inicio</span>
+            </button>
+        </div>
+
+        <!-- Admin Publisher Panel (Solo visible tras iniciar sesión como Admin) -->
+        <div id="publisherContainer" class="hidden bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-100 dark:border-neutral-800 pb-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-emerald-500"><i class="fa-solid fa-pen-nib mr-1"></i> Nueva Publicación</span>
+                <span class="text-xs text-gray-400">Texto plano o Markdown</span>
+            </div>
+
+            <!-- Text Area -->
+            <div>
+                <textarea id="postText" rows="5" placeholder="Escribe aquí tu publicación... Usa Enter para dejar espacios entre líneas." class="w-full bg-gray-50 dark:bg-neutral-800/50 p-3 rounded-xl border border-gray-200 dark:border-neutral-700 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white resize-y dark:text-white" oninput="updateMarkdownPreview()"></textarea>
+            </div>
+
+            <!-- Previsualización -->
+            <div id="markdownPreviewWrapper" class="hidden bg-gray-50 dark:bg-neutral-950 p-3 rounded-xl border border-gray-200 dark:border-neutral-800">
+                <p class="text-[11px] font-semibold text-gray-400 mb-2 uppercase tracking-wider">Vista previa:</p>
+                <div id="markdownPreview" class="markdown-content text-sm text-gray-800 dark:text-gray-200"></div>
+            </div>
+
+            <!-- Image Preview Grid -->
+            <div id="imagePreviewContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2 hidden"></div>
+
+            <!-- Tags Input -->
+            <div class="flex items-center space-x-2 border-t border-gray-100 dark:border-neutral-800 pt-3">
+                <i class="fa-solid fa-hashtag text-gray-400 text-xs"></i>
+                <input type="text" id="postTags" placeholder="Etiquetas separadas por coma o espacio (ej: reflexiones, fe)" class="w-full text-xs sm:text-sm bg-transparent border-none focus:ring-0 outline-none text-gray-700 dark:text-gray-300">
+            </div>
+
+            <!-- Bottom Actions -->
+            <div class="flex items-center justify-between pt-2">
+                <label class="cursor-pointer text-gray-500 hover:text-black dark:hover:text-white transition flex items-center space-x-1.5 text-xs font-medium p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800">
+                    <i class="fa-regular fa-image text-base"></i>
+                    <span>Añadir Imagen</span>
+                    <input type="file" id="imageInput" multiple accept="image/*" class="hidden" onchange="handleImageSelection(event)">
+                </label>
+
+                <button id="publishBtn" onclick="createNewPost()" class="bg-black dark:bg-white text-white dark:text-black hover:opacity-90 px-5 py-2 rounded-full text-xs font-bold transition">
+                    Publicar
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Active Bar -->
+        <div id="filterBar" class="hidden items-center justify-between bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 px-4 py-2 rounded-xl text-sm">
+            <div class="flex items-center space-x-2">
+                <span class="text-gray-500 text-xs">Filtrado por:</span>
+                <span id="activeFilterTag" class="bg-black dark:bg-white text-white dark:text-black text-xs px-2.5 py-0.5 rounded-full font-semibold"></span>
+            </div>
+            <button onclick="resetFilter()" class="text-xs text-gray-500 hover:text-black dark:hover:text-white">
+                <i class="fa-solid fa-xmark mr-1"></i> Quitar filtro
+            </button>
+        </div>
+
+        <!-- Timeline Feed Container -->
+        <div id="feedView" class="space-y-4">
+            <div id="feedContainer" class="space-y-4"></div>
+        </div>
+
+        <!-- Detail Post View Container -->
+        <div id="detailView" class="hidden space-y-4">
+            <div id="detailContainer"></div>
+        </div>
+
+        <!-- Loading -->
+        <div id="feedLoading" class="text-center py-8">
+            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-gray-400"></i>
+            <p class="text-xs text-gray-400 mt-2">Cargando publicaciones...</p>
+        </div>
+
+        <!-- Empty Feed -->
+        <div id="feedEmpty" class="hidden text-center py-12 space-y-3 bg-white dark:bg-neutral-900/40 rounded-2xl border border-gray-200 dark:border-neutral-800">
+            <i class="fa-regular fa-paper-plane text-4xl text-gray-300 dark:text-neutral-700"></i>
+            <p class="text-gray-500 text-sm font-medium">No hay publicaciones todavía.</p>
+        </div>
+
+    </main>
+
+    <!-- Footer discreto (Clic para abrir acceso Admin) -->
+    <footer class="py-8 border-t border-gray-200 dark:border-neutral-800 text-center text-xs text-gray-400">
+        <button onclick="openAuthModal()" class="hover:text-gray-600 dark:hover:text-gray-300 transition cursor-pointer">
+            BeMashiaj &copy; 2026
+        </button>
+    </footer>
+
+    <!-- MODAL: Login Admin (Oculto para visitantes, accesible vía #admin o clic en footer) -->
+    <div id="authModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-lg dark:text-white">Acceso Administrador</h3>
+                <button onclick="closeAuthModal()" class="text-gray-400 hover:text-black dark:hover:text-white p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleAuthSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Correo Electrónico</label>
+                    <input type="email" id="authEmail" required placeholder="admin@email.com" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 dark:text-white text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Contraseña</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 dark:text-white text-sm">
+                </div>
+                <button type="submit" id="authSubmitBtn" class="w-full py-2.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition">
+                    Iniciar Sesión
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lightbox para ver imágenes en grande -->
+    <div id="imageLightbox" onclick="closeLightbox()" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm hidden flex items-center justify-center p-4 cursor-zoom-out">
+        <img id="lightboxImg" src="" class="max-w-full max-h-[90vh] rounded-2xl object-contain shadow-2xl">
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-black dark:bg-white text-white dark:text-black px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold pointer-events-none">
+        <span id="toastMessage"></span>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Credenciales de Supabase integradas directamente para GitHub Pages
+        const SUPABASE_URL = 'https://gedeqtoowqevjvbjrenr.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable__ZJ2mntn6ngP3NdPfabGjw_JlGNcaEX';
+
+        // Configurar marked.js para respetar saltos de línea simples (Enter)
+        if (window.marked) {
+            marked.setOptions({
+                breaks: true,
+                gfm: true
+            });
+        }
+
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let currentUser = null;
+        let selectedFiles = [];
+        let allPosts = [];
+        let activeTagFilter = null;
+        let currentView = 'feed'; // 'feed' | 'detail'
+        let currentDetailPostId = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            initTheme();
+            await checkUserSession();
+            handleInitialRoute();
+        });
+
+        window.addEventListener('hashchange', () => {
+            handleInitialRoute();
+        });
+
+        function handleInitialRoute() {
+            const hash = window.location.hash;
+            if (hash.startsWith('#post/')) {
+                const postId = hash.replace('#post/', '');
+                openPostDetail(postId, false);
+            } else if (hash === '#admin') {
+                navigateToFeed(false);
+                if (!currentUser) {
+                    openAuthModal();
+                } else {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            } else {
+                navigateToFeed(false);
+            }
+        }
+
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        }
+
+        // --- Preserva líneas en blanco múltiples al renderizar HTML ---
+        function formatContentToHTML(rawText) {
+            if (!rawText) return '';
+            // Reemplaza saltos de línea vacíos adicionales para mantener separación visual exacta
+            const preservedText = rawText.replace(/\n{3,}/g, (match) => {
+                return '\n\n' + '<br>'.repeat(match.length - 2);
+            });
+            return marked.parse(preservedText);
+        }
+
+        // --- Convierte Markdown a Texto Plano Limpio (Conservando todos los saltos de línea) ---
+        function markdownToPlainText(markdownStr) {
+            if (!markdownStr) return '';
+            let text = markdownStr;
+            text = text.replace(/^#+\s+/gm, ''); // Encabezados #
+            text = text.replace(/(\*\*|__)(.*?)\1/g, '$2'); // Negritas
+            text = text.replace(/(\*|_)(.*?)\1/g, '$2'); // Itálicas
+            text = text.replace(/~~(.*?)~~/g, '$2'); // Tachado
+            text = text.replace(/`([^`]+)`/g, '$1'); // Código inline
+            text = text.replace(/```[\s\S]*?```/g, (m) => m.replace(/```.*\n?|```/g, '')); // Bloques de código
+            text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)'); // Enlaces
+            text = text.replace(/^\s*>+\s+/gm, ''); // Citas
+            text = text.replace(/^\s*[-+*]\s+/gm, '• '); // Listas no ordenadas
+            return text.trim();
+        }
+
+        // --- Sesión Admin ---
+        async function checkUserSession() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            currentUser = session?.user || null;
+            updateAdminUI();
+
+            supabaseClient.auth.onAuthStateChange((_event, session) => {
+                currentUser = session?.user || null;
+                updateAdminUI();
+                if (currentView === 'feed') renderFeed();
+                else if (currentDetailPostId) renderDetailPost(currentDetailPostId);
+            });
+        }
+
+        function updateAdminUI() {
+            const publisher = document.getElementById('publisherContainer');
+            const adminBadge = document.getElementById('adminBadge');
+
+            if (currentUser) {
+                publisher.classList.remove('hidden');
+                adminBadge.classList.remove('hidden');
+                adminBadge.classList.add('flex');
+            } else {
+                publisher.classList.add('hidden');
+                adminBadge.classList.add('hidden');
+                adminBadge.classList.remove('flex');
+            }
+        }
+
+        // --- Navigation ---
+        async function navigateToFeed(updateHash = true) {
+            currentView = 'feed';
+            if (updateHash && window.location.hash !== '') {
+                history.replaceState(null, null, window.location.pathname);
+            }
+            document.getElementById('feedView').classList.remove('hidden');
+            document.getElementById('detailView').classList.add('hidden');
+            document.getElementById('backToFeedBar').classList.add('hidden');
+            await fetchPosts();
+        }
+
+        async function openPostDetail(postId, updateHash = true) {
+            currentView = 'detail';
+            currentDetailPostId = postId;
+            if (updateHash) window.location.hash = `post/${postId}`;
+
+            document.getElementById('feedView').classList.add('hidden');
+            document.getElementById('detailView').classList.remove('hidden');
+            document.getElementById('backToFeedBar').classList.remove('hidden');
+            document.getElementById('backToFeedBar').classList.add('flex');
+
+            if (allPosts.length === 0) {
+                await fetchPosts();
+            } else {
+                renderDetailPost(postId);
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- Fetch & Render ---
+        async function fetchPosts() {
+            document.getElementById('feedLoading').classList.remove('hidden');
+            document.getElementById('feedEmpty').classList.add('hidden');
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('posts')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+                allPosts = data || [];
+            } catch (err) {
+                console.error("Error cargando posts:", err);
+                showToast("Error al conectar con la base de datos.");
+            }
+
+            document.getElementById('feedLoading').classList.add('hidden');
+
+            if (currentView === 'detail' && currentDetailPostId) {
+                renderDetailPost(currentDetailPostId);
+            } else {
+                renderFeed();
+            }
+        }
+
+        function renderFeed() {
+            const container = document.getElementById('feedContainer');
+            const emptyState = document.getElementById('feedEmpty');
+
+            let filtered = allPosts;
+            if (activeTagFilter) {
+                filtered = allPosts.filter(p => p.tags && p.tags.includes(activeTagFilter));
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            container.innerHTML = filtered.map(post => createPostCardHTML(post, true)).join('');
+        }
+
+        function renderDetailPost(postId) {
+            const container = document.getElementById('detailContainer');
+            const post = allPosts.find(p => String(p.id) === String(postId));
+
+            if (!post) {
+                container.innerHTML = `<div class="text-center py-10 text-gray-400">Publicación no encontrada.</div>`;
+                return;
+            }
+
+            container.innerHTML = createPostCardHTML(post, false);
+        }
+
+        function createPostCardHTML(post, isPreview = true) {
+            const dateStr = new Date(post.created_at).toLocaleString('es-ES', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+
+            const renderedHTML = formatContentToHTML(post.content || '');
+            const hasReacted = hasUserReacted(post.id);
+            const lineCount = (post.content || '').split('\n').length;
+            const isLongText = lineCount > 5 || (post.content || '').length > 260;
+
+            // Images
+            let imagesHTML = '';
+            if (post.image_urls && post.image_urls.length > 0) {
+                const gridCols = post.image_urls.length === 1 ? 'grid-cols-1' : 'grid-cols-2';
+                imagesHTML = `
+                    <div class="grid ${gridCols} gap-2 mt-3 rounded-2xl overflow-hidden border border-gray-200 dark:border-neutral-800">
+                        ${post.image_urls.map(url => `
+                            <div onclick="event.stopPropagation(); openLightbox('${url}')" class="block ${post.image_urls.length === 1 ? 'max-h-[480px]' : 'aspect-square'} bg-neutral-100 dark:bg-neutral-800 overflow-hidden cursor-zoom-in">
+                                <img src="${url}" loading="lazy" class="w-full h-full object-cover hover:scale-[1.02] transition duration-300">
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Tags
+            const tagsHTML = post.tags && post.tags.length > 0 ? `
+                <div class="flex flex-wrap gap-1.5 mt-3">
+                    ${post.tags.map(t => `
+                        <button onclick="event.stopPropagation(); filterByTag('${t}')" class="text-xs text-neutral-500 hover:text-black dark:hover:text-white transition">#${t}</button>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            // Botón de eliminar visible solo si el Admin está autenticado
+            const deleteBtnHTML = currentUser ? `
+                <button onclick="event.stopPropagation(); deletePost('${post.id}')" title="Eliminar publicación" class="text-gray-400 hover:text-red-500 transition ml-2">
+                    <i class="fa-regular fa-trash-can text-xs"></i>
+                </button>
+            ` : '';
+
+            return `
+                <article onclick="${isPreview ? `openPostDetail('${post.id}')` : ''}" class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl p-5 shadow-sm transition ${isPreview ? 'cursor-pointer hover:border-gray-300 dark:hover:border-neutral-700' : ''}">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between text-xs text-gray-400 mb-2">
+                        <span class="font-bold text-black dark:text-white text-sm">BeMashiaj</span>
+                        <div class="flex items-center">
+                            <span>${dateStr}</span>
+                            ${deleteBtnHTML}
+                        </div>
+                    </div>
+
+                    <!-- Content (Máximo 5 líneas en vista previa) -->
+                    <div class="markdown-content text-sm sm:text-base text-gray-800 dark:text-gray-200 break-words ${isPreview ? 'line-clamp-5' : ''}">
+                        ${renderedHTML}
+                    </div>
+
+                    ${isPreview && isLongText ? `
+                        <div class="mt-1.5">
+                            <span class="text-xs font-semibold text-neutral-400 hover:text-black dark:hover:text-white transition">Leer más...</span>
+                        </div>
+                    ` : ''}
+
+                    <!-- Images -->
+                    ${imagesHTML}
+
+                    <!-- Tags -->
+                    ${tagsHTML}
+
+                    <!-- Bottom Action Buttons (Solo Reacción, Copiar y Compartir) -->
+                    <div class="flex items-center justify-between border-t border-gray-100 dark:border-neutral-800/80 pt-3 mt-4" onclick="event.stopPropagation()">
+                        <!-- Reaction Button (Limitado a 1 reacción por usuario) -->
+                        <button onclick="addReaction('${post.id}')" ${hasReacted ? 'disabled' : ''} 
+                            class="flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition ${
+                                hasReacted 
+                                ? 'bg-red-100 text-red-600 dark:bg-red-950/80 dark:text-red-400 cursor-default' 
+                                : 'bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-gray-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 active:scale-95'
+                            }">
+                            <i class="${hasReacted ? 'fa-solid text-red-500' : 'fa-regular'} fa-heart"></i>
+                            <span>${post.reactions || 0}</span>
+                        </button>
+
+                        <!-- Copy & Native Share Buttons -->
+                        <div class="flex items-center space-x-1">
+                            <button onclick="copyPostText('${post.id}')" title="Copiar texto" class="p-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition">
+                                <i class="fa-regular fa-copy text-base"></i>
+                            </button>
+                            <button onclick="shareNative('${post.id}')" title="Compartir" class="p-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition">
+                                <i class="fa-solid fa-share-nodes text-base"></i>
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
+
+        // --- Reacciones Limitadas a 1 sola vez ---
+        function hasUserReacted(postId) {
+            return localStorage.getItem(`reacted_post_${postId}`) === 'true';
+        }
+
+        async function addReaction(postId) {
+            if (hasUserReacted(postId)) {
+                showToast("Ya has reaccionado a esta publicación.");
+                return;
+            }
+
+            const post = allPosts.find(p => String(p.id) === String(postId));
+            if (!post) return;
+
+            const newCount = (post.reactions || 0) + 1;
+            post.reactions = newCount;
+            localStorage.setItem(`reacted_post_${postId}`, 'true');
+
+            if (currentView === 'detail') renderDetailPost(postId);
+            else renderFeed();
+
+            const { error } = await supabaseClient
+                .from('posts')
+                .update({ reactions: newCount })
+                .eq('id', postId);
+
+            if (error) {
+                console.error("Error al actualizar reacción:", error);
+            } else {
+                showToast("❤️ Reacción añadida");
+            }
+        }
+
+        // --- Copiar Texto Plano (Sin sintaxis Markdown, conservando saltos de línea) ---
+        function copyPostText(postId) {
+            const post = allPosts.find(p => String(p.id) === String(postId));
+            if (!post) return;
+
+            const plainText = markdownToPlainText(post.content || '');
+            
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = plainText;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            showToast("📋 Texto copiado al portapapeles");
+        }
+
+        // --- Compartir Nativo (Web Share API del Teléfono) ---
+        async function shareNative(postId) {
+            const post = allPosts.find(p => String(p.id) === String(postId));
+            if (!post) return;
+
+            const plainText = markdownToPlainText(post.content || '');
+            const shareUrl = window.location.origin + window.location.pathname + '#post/' + post.id;
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'BeMashiaj',
+                        text: plainText,
+                        url: shareUrl
+                    });
+                } catch (err) {
+                    // Cancelado por el usuario
+                }
+            } else {
+                const textToCopy = `${plainText}\n\n${shareUrl}`;
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = textToCopy;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+
+                showToast("🔗 Texto y enlace copiados para compartir");
+            }
+        }
+
+        // --- Live Preview Update ---
+        function updateMarkdownPreview() {
+            const text = document.getElementById('postText').value;
+            const previewContainer = document.getElementById('markdownPreview');
+            const previewWrapper = document.getElementById('markdownPreviewWrapper');
+
+            if (text.trim()) {
+                previewWrapper.classList.remove('hidden');
+                previewContainer.innerHTML = formatContentToHTML(text);
+            } else {
+                previewWrapper.classList.add('hidden');
+            }
+        }
+
+        // --- Image Selection & Create Post ---
+        function handleImageSelection(e) {
+            selectedFiles = Array.from(e.target.files);
+            renderImagePreviews();
+        }
+
+        function renderImagePreviews() {
+            const container = document.getElementById('imagePreviewContainer');
+            if (selectedFiles.length === 0) {
+                container.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+            container.classList.remove('hidden');
+            container.innerHTML = selectedFiles.map((file, idx) => `
+                <div class="relative aspect-video rounded-xl bg-gray-100 dark:bg-neutral-800 overflow-hidden group">
+                    <img src="${URL.createObjectURL(file)}" class="w-full h-full object-cover">
+                    <button type="button" onclick="removeSelectedFile(${idx})" class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function removeSelectedFile(index) {
+            selectedFiles.splice(index, 1);
+            renderImagePreviews();
+        }
+
+        async function createNewPost() {
+            if (!currentUser) {
+                showToast("Debes iniciar sesión como administrador.");
+                return;
+            }
+
+            const content = document.getElementById('postText').value.trim();
+            const tagsInput = document.getElementById('postTags').value.trim();
+
+            if (!content && selectedFiles.length === 0) {
+                showToast("Escribe un texto o selecciona una imagen.");
+                return;
+            }
+
+            const publishBtn = document.getElementById('publishBtn');
+            publishBtn.disabled = true;
+            publishBtn.innerText = "Publicando...";
+
+            try {
+                const tags = tagsInput 
+                    ? tagsInput.split(/[\s,]+/).map(t => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean) 
+                    : [];
+                let imageUrls = [];
+
+                if (selectedFiles.length > 0) {
+                    for (const file of selectedFiles) {
+                        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        const fileName = `${Date.now()}_${cleanName}`;
+                        const { error: uploadError } = await supabaseClient.storage
+                            .from('threads_images')
+                            .upload(fileName, file);
+
+                        if (uploadError) throw uploadError;
+
+                        const { data: urlData } = supabaseClient.storage
+                            .from('threads_images')
+                            .getPublicUrl(fileName);
+
+                        imageUrls.push(urlData.publicUrl);
+                    }
+                }
+
+                const { error: insertError } = await supabaseClient
+                    .from('posts')
+                    .insert([{
+                        content,
+                        tags,
+                        reactions: 0,
+                        image_urls: imageUrls
+                    }]);
+
+                if (insertError) throw insertError;
+
+                document.getElementById('postText').value = '';
+                document.getElementById('postTags').value = '';
+                document.getElementById('imageInput').value = '';
+                selectedFiles = [];
+                renderImagePreviews();
+                updateMarkdownPreview();
+                showToast("Publicación creada correctamente.");
+                await navigateToFeed();
+            } catch (err) {
+                console.error(err);
+                showToast("Error al publicar: " + (err.message || "Verifica permisos"));
+            } finally {
+                publishBtn.disabled = false;
+                publishBtn.innerText = "Publicar";
+            }
+        }
+
+        async function deletePost(postId) {
+            if (!currentUser) return;
+            const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
+            if (error) {
+                showToast("Error al eliminar: " + error.message);
+            } else {
+                showToast("Publicación eliminada.");
+                if (currentView === 'detail') navigateToFeed();
+                else fetchPosts();
+            }
+        }
+
+        // --- Filters & Lightbox ---
+        function filterByTag(tag) {
+            activeTagFilter = tag;
+            document.getElementById('activeFilterTag').innerText = `#${tag}`;
+            document.getElementById('filterBar').classList.remove('hidden');
+            document.getElementById('filterBar').classList.add('flex');
+            if (currentView !== 'feed') navigateToFeed();
+            else renderFeed();
+        }
+
+        function resetFilter() {
+            activeTagFilter = null;
+            document.getElementById('filterBar').classList.add('hidden');
+            document.getElementById('filterBar').classList.remove('flex');
+            renderFeed();
+        }
+
+        function openLightbox(url) {
+            document.getElementById('lightboxImg').src = url;
+            document.getElementById('imageLightbox').classList.remove('hidden');
+        }
+
+        function closeLightbox() {
+            document.getElementById('imageLightbox').classList.add('hidden');
+            document.getElementById('lightboxImg').src = '';
+        }
+
+        // --- Auth Modal ---
+        function openAuthModal() {
+            if (currentUser) {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                showToast("Ya tienes sesión iniciada como Admin.");
+                return;
+            }
+            document.getElementById('authModal').classList.remove('hidden');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+            if (window.location.hash === '#admin') {
+                history.replaceState(null, null, window.location.pathname);
+            }
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value.trim();
+            const password = document.getElementById('authPassword').value;
+            const btn = document.getElementById('authSubmitBtn');
+
+            btn.disabled = true;
+            btn.innerText = "Verificando...";
+
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+            btn.disabled = false;
+            btn.innerText = "Iniciar Sesión";
+
+            if (error) {
+                showToast("Error: " + error.message);
+            } else {
+                closeAuthModal();
+                showToast("Bienvenido, Admin.");
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+            currentUser = null;
+            updateAdminUI();
+            showToast("Sesión cerrada.");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>
