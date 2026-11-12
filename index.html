@@ -155,6 +155,20 @@
             </div>
         </div>
 
+        <!-- Buscador minimalista (Visible en el inicio) -->
+        <div id="searchBarContainer" class="relative">
+            <input 
+                type="text" 
+                id="searchInput" 
+                placeholder="Buscar en publicaciones o etiquetas..." 
+                class="w-full px-4 py-2.5 pl-10 pr-9 text-sm rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition"
+            />
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-gray-400 text-xs"></i>
+            <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 top-2.5 text-gray-400 hover:text-black dark:hover:text-white p-1" title="Limpiar búsqueda">
+                <i class="fa-solid fa-xmark text-xs"></i>
+            </button>
+        </div>
+
         <!-- Filter Active Bar -->
         <div id="filterBar" class="hidden items-center justify-between bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 px-4 py-2 rounded-xl text-sm">
             <div class="flex items-center space-x-2">
@@ -169,6 +183,13 @@
         <!-- Timeline Feed Container -->
         <div id="feedView" class="space-y-4">
             <div id="feedContainer" class="space-y-4"></div>
+
+            <!-- Botón Cargar Más (Paginación de 10 en 10) -->
+            <div id="loadMoreContainer" class="hidden pt-4 text-center">
+                <button id="loadMoreBtn" onclick="loadMorePosts()" class="px-6 py-2.5 rounded-full text-xs font-semibold border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 transition shadow-sm">
+                    Cargar más publicaciones
+                </button>
+            </div>
         </div>
 
         <!-- Detail Post View Container -->
@@ -185,7 +206,7 @@
         <!-- Empty Feed -->
         <div id="feedEmpty" class="hidden text-center py-12 space-y-3 bg-white dark:bg-neutral-900/40 rounded-2xl border border-gray-200 dark:border-neutral-800">
             <i class="fa-regular fa-paper-plane text-4xl text-gray-300 dark:text-neutral-700"></i>
-            <p class="text-gray-500 text-sm font-medium">No hay publicaciones todavía.</p>
+            <p class="text-gray-500 text-sm font-medium">No se encontraron publicaciones.</p>
         </div>
 
     </main>
@@ -197,8 +218,66 @@
         </button>
     </footer>
 
+    <!-- MODAL: Editar Publicación (Solo Admin) -->
+    <div id="editModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-100 dark:border-neutral-800 pb-3">
+                <h3 class="font-bold text-base dark:text-white flex items-center gap-2">
+                    <i class="fa-regular fa-pen-to-square text-emerald-500"></i>
+                    <span>Editar Publicación</span>
+                </h3>
+                <button onclick="closeEditModal()" class="text-gray-400 hover:text-black dark:hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <input type="hidden" id="editPostId">
+
+            <!-- Texto a editar -->
+            <div>
+                <textarea id="editPostText" rows="6" placeholder="Escribe aquí tu publicación..." class="w-full bg-gray-50 dark:bg-neutral-800/50 p-3 rounded-xl border border-gray-200 dark:border-neutral-700 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white resize-y dark:text-white" oninput="updateEditMarkdownPreview()"></textarea>
+            </div>
+
+            <!-- Vista previa de edición -->
+            <div id="editMarkdownPreviewWrapper" class="hidden bg-gray-50 dark:bg-neutral-950 p-3 rounded-xl border border-gray-200 dark:border-neutral-800">
+                <p class="text-[11px] font-semibold text-gray-400 mb-2 uppercase tracking-wider">Vista previa:</p>
+                <div id="editMarkdownPreview" class="markdown-content text-sm text-gray-800 dark:text-gray-200"></div>
+            </div>
+
+            <!-- Imágenes actuales y nuevas en edición -->
+            <div id="editImagesSection" class="space-y-2 hidden">
+                <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Imágenes de la publicación:</p>
+                <div id="editImagePreviewContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+            </div>
+
+            <!-- Etiquetas -->
+            <div class="flex items-center space-x-2 border-t border-gray-100 dark:border-neutral-800 pt-3">
+                <i class="fa-solid fa-hashtag text-gray-400 text-xs"></i>
+                <input type="text" id="editPostTags" placeholder="Etiquetas separadas por coma o espacio" class="w-full text-xs sm:text-sm bg-transparent border-none focus:ring-0 outline-none text-gray-700 dark:text-gray-300">
+            </div>
+
+            <!-- Botones inferiores del modal -->
+            <div class="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-neutral-800">
+                <label class="cursor-pointer text-gray-500 hover:text-black dark:hover:text-white transition flex items-center space-x-1.5 text-xs font-medium p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800">
+                    <i class="fa-regular fa-image text-base"></i>
+                    <span>Añadir más imágenes</span>
+                    <input type="file" id="editImageInput" multiple accept="image/*" class="hidden" onchange="handleEditImageSelection(event)">
+                </label>
+
+                <div class="flex items-center space-x-2">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 rounded-full text-xs font-semibold border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition">
+                        Cancelar
+                    </button>
+                    <button type="button" id="saveEditBtn" onclick="saveEditedPost()" class="bg-black dark:bg-white text-white dark:text-black hover:opacity-90 px-5 py-2 rounded-full text-xs font-bold transition">
+                        Guardar cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: Login Admin (Oculto para visitantes, accesible vía #admin o clic en footer) -->
-    <div id="authModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div id="authModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
         <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-5">
             <div class="flex items-center justify-between">
                 <h3 class="font-bold text-lg dark:text-white">Acceso Administrador</h3>
@@ -221,7 +300,7 @@
     </div>
 
     <!-- Lightbox para ver imágenes en grande -->
-    <div id="imageLightbox" onclick="closeLightbox()" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm hidden flex items-center justify-center p-4 cursor-zoom-out">
+    <div id="imageLightbox" onclick="closeLightbox()" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm hidden items-center justify-center p-4 cursor-zoom-out">
         <img id="lightboxImg" src="" class="max-w-full max-h-[90vh] rounded-2xl object-contain shadow-2xl">
     </div>
 
@@ -249,11 +328,21 @@
         let selectedFiles = [];
         let allPosts = [];
         let activeTagFilter = null;
+        let currentSearchQuery = '';
         let currentView = 'feed'; // 'feed' | 'detail'
         let currentDetailPostId = null;
 
+        // Paginación
+        const PAGE_SIZE = 10;
+        let visibleLimit = PAGE_SIZE;
+
+        // Estado temporal para edición
+        let editExistingImageUrls = [];
+        let editNewFiles = [];
+
         window.addEventListener('DOMContentLoaded', async () => {
             initTheme();
+            setupSearchListener();
             await checkUserSession();
             handleInitialRoute();
         });
@@ -300,7 +389,6 @@
         // --- Preserva líneas en blanco múltiples al renderizar HTML ---
         function formatContentToHTML(rawText) {
             if (!rawText) return '';
-            // Reemplaza saltos de línea vacíos adicionales para mantener separación visual exacta
             const preservedText = rawText.replace(/\n{3,}/g, (match) => {
                 return '\n\n' + '<br>'.repeat(match.length - 2);
             });
@@ -352,13 +440,47 @@
             }
         }
 
+        // --- Buscador en tiempo real ---
+        function setupSearchListener() {
+            const searchInput = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('clearSearchBtn');
+            let timeout;
+
+            searchInput.addEventListener('input', (e) => {
+                const val = e.target.value;
+                if (val.trim().length > 0) {
+                    clearBtn.classList.remove('hidden');
+                } else {
+                    clearBtn.classList.add('hidden');
+                }
+
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    currentSearchQuery = val.trim().toLowerCase();
+                    visibleLimit = PAGE_SIZE;
+                    renderFeed();
+                }, 250);
+            });
+        }
+
+        function clearSearch() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = '';
+            currentSearchQuery = '';
+            visibleLimit = PAGE_SIZE;
+            document.getElementById('clearSearchBtn').classList.add('hidden');
+            renderFeed();
+        }
+
         // --- Navigation ---
         async function navigateToFeed(updateHash = true) {
             currentView = 'feed';
+            visibleLimit = PAGE_SIZE;
             if (updateHash && window.location.hash !== '') {
                 history.replaceState(null, null, window.location.pathname);
             }
             document.getElementById('feedView').classList.remove('hidden');
+            document.getElementById('searchBarContainer').classList.remove('hidden');
             document.getElementById('detailView').classList.add('hidden');
             document.getElementById('backToFeedBar').classList.add('hidden');
             await fetchPosts();
@@ -370,6 +492,7 @@
             if (updateHash) window.location.hash = `post/${postId}`;
 
             document.getElementById('feedView').classList.add('hidden');
+            document.getElementById('searchBarContainer').classList.add('hidden');
             document.getElementById('detailView').classList.remove('hidden');
             document.getElementById('backToFeedBar').classList.remove('hidden');
             document.getElementById('backToFeedBar').classList.add('flex');
@@ -412,20 +535,46 @@
         function renderFeed() {
             const container = document.getElementById('feedContainer');
             const emptyState = document.getElementById('feedEmpty');
+            const loadMoreContainer = document.getElementById('loadMoreContainer');
 
             let filtered = allPosts;
+
+            // Filtro por etiqueta
             if (activeTagFilter) {
-                filtered = allPosts.filter(p => p.tags && p.tags.includes(activeTagFilter));
+                filtered = filtered.filter(p => p.tags && p.tags.includes(activeTagFilter));
+            }
+
+            // Filtro por buscador (texto o etiquetas)
+            if (currentSearchQuery) {
+                filtered = filtered.filter(p => {
+                    const contentMatch = (p.content || '').toLowerCase().includes(currentSearchQuery);
+                    const tagsMatch = (p.tags || []).some(t => t.toLowerCase().includes(currentSearchQuery.replace(/^#/, '')));
+                    return contentMatch || tagsMatch;
+                });
             }
 
             if (filtered.length === 0) {
                 container.innerHTML = '';
+                loadMoreContainer.classList.add('hidden');
                 emptyState.classList.remove('hidden');
                 return;
             }
 
             emptyState.classList.add('hidden');
-            container.innerHTML = filtered.map(post => createPostCardHTML(post, true)).join('');
+
+            const paginatedPosts = filtered.slice(0, visibleLimit);
+            container.innerHTML = paginatedPosts.map(post => createPostCardHTML(post, true)).join('');
+
+            if (filtered.length > visibleLimit) {
+                loadMoreContainer.classList.remove('hidden');
+            } else {
+                loadMoreContainer.classList.add('hidden');
+            }
+        }
+
+        function loadMorePosts() {
+            visibleLimit += PAGE_SIZE;
+            renderFeed();
         }
 
         function renderDetailPost(postId) {
@@ -474,9 +623,12 @@
                 </div>
             ` : '';
 
-            // Botón de eliminar visible solo si el Admin está autenticado
-            const deleteBtnHTML = currentUser ? `
-                <button onclick="event.stopPropagation(); deletePost('${post.id}')" title="Eliminar publicación" class="text-gray-400 hover:text-red-500 transition ml-2">
+            // Botones de Editar y Eliminar visibles solo si el Admin está autenticado
+            const adminActionsHTML = currentUser ? `
+                <button onclick="event.stopPropagation(); openEditModal('${post.id}')" title="Editar publicación" class="text-gray-400 hover:text-emerald-500 transition ml-2.5 p-1">
+                    <i class="fa-regular fa-pen-to-square text-xs"></i>
+                </button>
+                <button onclick="event.stopPropagation(); deletePost('${post.id}')" title="Eliminar publicación" class="text-gray-400 hover:text-red-500 transition ml-1 p-1">
                     <i class="fa-regular fa-trash-can text-xs"></i>
                 </button>
             ` : '';
@@ -488,7 +640,7 @@
                         <span class="font-bold text-black dark:text-white text-sm">BeMashiaj</span>
                         <div class="flex items-center">
                             <span>${dateStr}</span>
-                            ${deleteBtnHTML}
+                            ${adminActionsHTML}
                         </div>
                     </div>
 
@@ -528,7 +680,7 @@
                                 <i class="fa-regular fa-copy text-base"></i>
                             </button>
                             <button onclick="shareNative('${post.id}')" title="Compartir" class="p-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition">
-                                <i class="fa-solid  fa-paper-plane text-base"></i>
+                                <i class="fa-solid fa-paper-plane text-base"></i>
                             </button>
                         </div>
                     </div>
@@ -617,7 +769,7 @@
             }
         }
 
-        // --- Live Preview Update ---
+        // --- Live Preview Update (Crear) ---
         function updateMarkdownPreview() {
             const text = document.getElementById('postText').value;
             const previewContainer = document.getElementById('markdownPreview');
@@ -730,6 +882,179 @@
             }
         }
 
+        // --- EDITAR PUBLICACIÓN (Admin) ---
+        function openEditModal(postId) {
+            if (!currentUser) return;
+            const post = allPosts.find(p => String(p.id) === String(postId));
+            if (!post) return;
+
+            document.getElementById('editPostId').value = post.id;
+            document.getElementById('editPostText').value = post.content || '';
+            document.getElementById('editPostTags').value = (post.tags || []).join(', ');
+            document.getElementById('editImageInput').value = '';
+
+            editExistingImageUrls = [...(post.image_urls || [])];
+            editNewFiles = [];
+
+            updateEditMarkdownPreview();
+            renderEditImagePreviews();
+
+            const modal = document.getElementById('editModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            editExistingImageUrls = [];
+            editNewFiles = [];
+        }
+
+        function updateEditMarkdownPreview() {
+            const text = document.getElementById('editPostText').value;
+            const previewContainer = document.getElementById('editMarkdownPreview');
+            const previewWrapper = document.getElementById('editMarkdownPreviewWrapper');
+
+            if (text.trim()) {
+                previewWrapper.classList.remove('hidden');
+                previewContainer.innerHTML = formatContentToHTML(text);
+            } else {
+                previewWrapper.classList.add('hidden');
+            }
+        }
+
+        function handleEditImageSelection(e) {
+            const files = Array.from(e.target.files);
+            editNewFiles = [...editNewFiles, ...files];
+            renderEditImagePreviews();
+        }
+
+        function renderEditImagePreviews() {
+            const section = document.getElementById('editImagesSection');
+            const container = document.getElementById('editImagePreviewContainer');
+
+            if (editExistingImageUrls.length === 0 && editNewFiles.length === 0) {
+                section.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+
+            section.classList.remove('hidden');
+
+            const existingHTML = editExistingImageUrls.map((url, idx) => `
+                <div class="relative aspect-video rounded-xl bg-gray-100 dark:bg-neutral-800 overflow-hidden">
+                    <img src="${url}" class="w-full h-full object-cover">
+                    <button type="button" onclick="removeEditExistingImage(${idx})" title="Quitar imagen" class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-600/90 text-white text-xs flex items-center justify-center hover:bg-red-600">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            const newFilesHTML = editNewFiles.map((file, idx) => `
+                <div class="relative aspect-video rounded-xl bg-gray-100 dark:bg-neutral-800 overflow-hidden border border-emerald-500/40">
+                    <img src="${URL.createObjectURL(file)}" class="w-full h-full object-cover">
+                    <button type="button" onclick="removeEditNewFile(${idx})" title="Quitar imagen nueva" class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            container.innerHTML = existingHTML + newFilesHTML;
+        }
+
+        function removeEditExistingImage(index) {
+            editExistingImageUrls.splice(index, 1);
+            renderEditImagePreviews();
+        }
+
+        function removeEditNewFile(index) {
+            editNewFiles.splice(index, 1);
+            renderEditImagePreviews();
+        }
+
+        async function saveEditedPost() {
+            if (!currentUser) return;
+
+            const postId = document.getElementById('editPostId').value;
+            const content = document.getElementById('editPostText').value.trim();
+            const tagsInput = document.getElementById('editPostTags').value.trim();
+
+            if (!content && editExistingImageUrls.length === 0 && editNewFiles.length === 0) {
+                showToast("La publicación no puede quedar vacía.");
+                return;
+            }
+
+            const saveBtn = document.getElementById('saveEditBtn');
+            saveBtn.disabled = true;
+            saveBtn.innerText = "Guardando...";
+
+            try {
+                const tags = tagsInput
+                    ? tagsInput.split(/[\s,]+/).map(t => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean)
+                    : [];
+
+                let finalImageUrls = [...editExistingImageUrls];
+
+                if (editNewFiles.length > 0) {
+                    for (const file of editNewFiles) {
+                        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        const fileName = `${Date.now()}_${cleanName}`;
+                        const { error: uploadError } = await supabaseClient.storage
+                            .from('threads_images')
+                            .upload(fileName, file);
+
+                        if (uploadError) throw uploadError;
+
+                        const { data: urlData } = supabaseClient.storage
+                            .from('threads_images')
+                            .getPublicUrl(fileName);
+
+                        finalImageUrls.push(urlData.publicUrl);
+                    }
+                }
+
+                const { error: updateError } = await supabaseClient
+                    .from('posts')
+                    .update({
+                        content,
+                        tags,
+                        image_urls: finalImageUrls
+                    })
+                    .eq('id', postId);
+
+                if (updateError) throw updateError;
+
+                // Actualizar en memoria local
+                const idx = allPosts.findIndex(p => String(p.id) === String(postId));
+                if (idx !== -1) {
+                    allPosts[idx] = {
+                        ...allPosts[idx],
+                        content,
+                        tags,
+                        image_urls: finalImageUrls
+                    };
+                }
+
+                closeEditModal();
+                showToast("✅ Publicación actualizada.");
+
+                if (currentView === 'detail' && String(currentDetailPostId) === String(postId)) {
+                    renderDetailPost(postId);
+                } else {
+                    renderFeed();
+                }
+            } catch (err) {
+                console.error("Error al editar:", err);
+                showToast("Error al guardar cambios: " + (err.message || "Verifica permisos RLS"));
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerText = "Guardar cambios";
+            }
+        }
+
+        // --- ELIMINAR PUBLICACIÓN ---
         async function deletePost(postId) {
             if (!currentUser) return;
             const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
@@ -745,6 +1070,7 @@
         // --- Filters & Lightbox ---
         function filterByTag(tag) {
             activeTagFilter = tag;
+            visibleLimit = PAGE_SIZE;
             document.getElementById('activeFilterTag').innerText = `#${tag}`;
             document.getElementById('filterBar').classList.remove('hidden');
             document.getElementById('filterBar').classList.add('flex');
@@ -754,18 +1080,23 @@
 
         function resetFilter() {
             activeTagFilter = null;
+            visibleLimit = PAGE_SIZE;
             document.getElementById('filterBar').classList.add('hidden');
             document.getElementById('filterBar').classList.remove('flex');
             renderFeed();
         }
 
         function openLightbox(url) {
+            const lb = document.getElementById('imageLightbox');
             document.getElementById('lightboxImg').src = url;
-            document.getElementById('imageLightbox').classList.remove('hidden');
+            lb.classList.remove('hidden');
+            lb.classList.add('flex');
         }
 
         function closeLightbox() {
-            document.getElementById('imageLightbox').classList.add('hidden');
+            const lb = document.getElementById('imageLightbox');
+            lb.classList.add('hidden');
+            lb.classList.remove('flex');
             document.getElementById('lightboxImg').src = '';
         }
 
@@ -776,11 +1107,15 @@
                 showToast("Ya tienes sesión iniciada como Admin.");
                 return;
             }
-            document.getElementById('authModal').classList.remove('hidden');
+            const modal = document.getElementById('authModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
 
         function closeAuthModal() {
-            document.getElementById('authModal').classList.add('hidden');
+            const modal = document.getElementById('authModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
             if (window.location.hash === '#admin') {
                 history.replaceState(null, null, window.location.pathname);
             }
